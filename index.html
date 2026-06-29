@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>TradeBook</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4"></script>
+  <style>
+    :root {
+      --bg:#f5f7fa;--surface:#fff;--surface2:#f0f3f8;--border:#dde3ee;
+      --accent:#2563eb;--accent-dim:rgba(37,99,235,0.08);--accent-dim2:rgba(37,99,235,0.18);
+      --text:#111827;--text-muted:#6b7280;--text-dim:#9ca3af;
+      --green:#22c55e;--green-dim:rgba(34,197,94,0.12);
+      --blue:#2563eb;--blue-dim:rgba(37,99,235,0.10);
+      --red:#ef4444;--red-dim:rgba(239,68,68,0.12);
+      --orange:#f97316;--orange-dim:rgba(249,115,22,0.12);
+      --radius:12px;--radius-sm:8px;
+      --font:'Inter',sans-serif;--mono:'DM Mono',monospace;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    body{font-family:var(--font);background:linear-gradient(160deg,#0f2a5e 0%,#1a3f8f 30%,#2563eb 65%,#60a5fa 100%);background-attachment:fixed;color:var(--text);min-height:100dvh;overflow-x:hidden}
+
+    /* ── LOGIN SCREEN ── */
+    #login-screen{display:none;min-height:100dvh;align-items:center;justify-content:center;padding:24px;flex-direction:column;gap:0}
+    #login-screen.show{display:flex}
+    .login-card{width:100%;max-width:380px;background:rgba(255,255,255,0.13);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,0.28);border-radius:24px;padding:32px 28px;box-shadow:0 8px 40px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.35)}
+    .login-logo{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:28px}
+    .login-logo-icon{width:40px;height:40px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.35);border-radius:10px;display:grid;place-items:center;font-size:20px}
+    .login-logo-text{font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.4px}
+    .login-logo-text em{color:rgba(147,197,253,1);font-style:normal}
+    .login-tabs{display:flex;background:rgba(0,0,0,0.2);border-radius:10px;padding:3px;margin-bottom:24px;gap:3px}
+    .login-tab{flex:1;padding:8px;border:none;background:none;border-radius:8px;color:rgba(255,255,255,0.6);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:background 0.15s,color 0.15s}
+    .login-tab.active{background:rgba(255,255,255,0.18);color:#fff}
+    .login-field{margin-bottom:14px}
+    .login-field label{display:block;font-size:11px;font-weight:600;color:rgba(255,255,255,0.7);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px}
+    .login-field input{width:100%;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.22);border-radius:var(--radius-sm);color:#fff;font-family:var(--font);font-size:15px;padding:12px 14px;outline:none;transition:border-color 0.15s;-webkit-appearance:none}
+    .login-field input::placeholder{color:rgba(255,255,255,0.35)}
+    .login-field input:focus{border-color:rgba(255,255,255,0.6)}
+    .login-btn{width:100%;margin-top:8px;padding:14px;border-radius:var(--radius-sm);font-family:var(--font);font-size:15px;font-weight:700;border:none;cursor:pointer;transition:opacity 0.15s,transform 0.1s;background:rgba(255,255,255,0.95);color:#1a3f8f;letter-spacing:-0.2px}
+    .login-btn:active{transform:scale(0.98);opacity:0.9}
+    .login-btn:disabled{opacity:0.5;cursor:default}
+    .login-error{margin-top:12px;padding:10px 14px;background:rgba(239,68,68,0.18);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius-sm);font-size:13px;color:#fca5a5;display:none}
+    .login-error.show{display:block}
+    .login-divider{text-align:center;font-size:11px;color:rgba(255,255,255,0.35);margin-top:20px}
+
+    /* ── APP ── */
+    #app{display:none;flex-direction:column;min-height:100dvh}
+    #app.show{display:flex}
+    #offline-banner{display:none;position:fixed;top:0;left:0;right:0;z-index:300;background:#f97316;color:#fff;padding:8px 16px;font-size:12px;font-weight:600;text-align:center}
+    #offline-banner.show{display:block}
+    #offline-banner.syncing{background:#2563eb}
+    #offline-banner.synced{background:#22c55e}
+    header{position:sticky;top:0;z-index:50;background:rgba(15,42,94,0.7);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid rgba(255,255,255,0.15);box-shadow:0 1px 0 rgba(255,255,255,0.08);padding:14px 20px;display:flex;align-items:center;justify-content:space-between}
+    .logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:17px;letter-spacing:-0.3px}
+    .logo-icon{width:30px;height:30px;background:var(--accent);border-radius:7px;display:grid;place-items:center;font-size:15px;color:#fff}
+    .logo em{color:var(--accent);font-style:normal}
+    #logout-btn{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:rgba(255,255,255,0.75);font-family:var(--font);font-size:12px;font-weight:600;padding:6px 12px;cursor:pointer;transition:background 0.15s}
+    #logout-btn:active{background:rgba(255,255,255,0.22)}
+    nav{position:sticky;bottom:0;z-index:50;background:rgba(15,42,94,0.75);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-top:1px solid rgba(255,255,255,0.15);display:flex;padding-bottom:env(safe-area-inset-bottom,0)}
+    .nav-btn{flex:1;border:none;background:none;cursor:pointer;padding:10px 4px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;color:rgba(255,255,255,0.45);transition:color 0.15s;font-size:10px;font-family:var(--font);font-weight:500}
+    .nav-btn svg{width:22px;height:22px}
+    .nav-btn.active{color:#fff}
+    main{flex:1;overflow-y:auto;padding:20px;padding-bottom:6px}
+    .section{display:none}.section.active{display:block}
+    .today-header{margin-bottom:20px}
+    .today-header h2{font-size:22px;font-weight:700;letter-spacing:-0.4px;color:#fff}
+    .today-header p{color:rgba(255,255,255,0.65);font-size:13px;margin-top:3px}
+    .dash-header{margin-bottom:20px}
+    .dash-greeting{font-size:24px;font-weight:700;color:#fff;letter-spacing:-0.4px}
+    .dash-date{font-size:13px;color:rgba(255,255,255,0.6);margin-top:3px}
+    .dash-section-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.5);margin:16px 0 10px}
+    .upcoming-day-label{font-size:12px;font-weight:600;color:rgba(255,255,255,0.55);margin:14px 0 6px;padding-left:2px}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+    .stat{background:rgba(255,255,255,0.12);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.22);border-radius:var(--radius-sm);padding:12px;text-align:center}
+    .stat-num{font-size:22px;font-weight:700;font-family:var(--mono);color:#fff}
+    .stat-label{font-size:10px;color:rgba(255,255,255,0.65);margin-top:2px;text-transform:uppercase;letter-spacing:0.5px}
+    .job-card{background:rgba(255,255,255,0.12);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.22);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;cursor:pointer;transition:border-color 0.15s}
+    .job-card:active{border-color:rgba(255,255,255,0.5);background:rgba(255,255,255,0.2)}
+    .trade-badge{width:38px;height:38px;border-radius:9px;flex-shrink:0;display:grid;place-items:center;font-size:18px}
+    .trade-badge.carpentry{background:rgba(161,85,36,0.12)}
+    .trade-badge.plumbing{background:rgba(37,99,235,0.12)}
+    .trade-badge.electrical{background:rgba(245,158,11,0.12)}
+    .trade-badge.painting{background:rgba(168,85,247,0.12)}
+    .trade-badge.roofing{background:rgba(239,68,68,0.12)}
+    .trade-badge.tiling{background:rgba(20,184,166,0.12)}
+    .trade-badge.general{background:rgba(100,116,139,0.12)}
+    .job-info{flex:1;min-width:0}
+    .job-title{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
+    .job-client{font-size:12px;color:rgba(255,255,255,0.65);margin-top:2px}
+    .job-time{font-size:12px;color:rgba(255,255,255,0.65);margin-top:2px;font-family:var(--mono)}
+    .job-meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}
+    .status-pill{font-size:10px;font-weight:600;padding:3px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:0.4px}
+    .status-pill.scheduled{background:var(--blue-dim);color:var(--blue)}
+    .status-pill.in_progress{background:var(--orange-dim);color:var(--orange)}
+    .status-pill.done{background:var(--green-dim);color:var(--green)}
+    .status-pill.cancelled{background:var(--red-dim);color:var(--red)}
+    .empty{text-align:center;padding:48px 20px;color:rgba(255,255,255,0.65)}
+    .empty-icon{font-size:40px;margin-bottom:12px}
+    .empty h3{font-size:16px;font-weight:600;color:#fff;margin-bottom:6px}
+    .empty p{font-size:13px;line-height:1.5}
+    .section-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.55);margin-bottom:10px;margin-top:20px}
+    .fab{position:fixed;bottom:calc(68px + env(safe-area-inset-bottom,0px));right:20px;width:52px;height:52px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:grid;place-items:center;box-shadow:0 4px 20px rgba(37,99,235,0.3);z-index:40;transition:transform 0.15s}
+    .fab:active{transform:scale(0.93)}
+    .fab svg{color:#fff;width:24px;height:24px}
+    .modal-backdrop{display:none;position:fixed;inset:0;z-index:100;background:rgba(17,24,39,0.4);backdrop-filter:blur(4px);align-items:flex-end}
+    .modal-backdrop.open{display:flex}
+    .modal{width:100%;max-height:92dvh;overflow-y:auto;background:var(--surface);border-radius:20px 20px 0 0;border:1px solid var(--border);border-bottom:none;padding:20px;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px));animation:slideUp 0.25s ease}
+    @keyframes slideUp{from{transform:translateY(60px);opacity:0}to{transform:translateY(0);opacity:1}}
+    .modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 18px}
+    .modal-title{font-size:18px;font-weight:700;margin-bottom:20px;letter-spacing:-0.3px}
+    .field{margin-bottom:14px}
+    .field label{display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.4px}
+    .field input,.field select,.field textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font);font-size:15px;padding:12px 14px;outline:none;transition:border-color 0.15s;-webkit-appearance:none;appearance:none}
+    .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent)}
+    .field textarea{resize:vertical;min-height:80px}
+    .field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
+    .btn{width:100%;padding:14px;border-radius:var(--radius-sm);font-family:var(--font);font-size:15px;font-weight:600;border:none;cursor:pointer;transition:opacity 0.15s,transform 0.1s}
+    .btn:active{transform:scale(0.98)}
+    .btn-primary{background:var(--accent);color:#fff}
+    .btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border);margin-top:8px}
+    .btn-danger{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,0.2);margin-top:8px}
+    .client-card{background:rgba(255,255,255,0.12);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.22);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:border-color 0.15s}
+    .client-card:active{border-color:rgba(255,255,255,0.5);background:rgba(255,255,255,0.2)}
+    .avatar{width:40px;height:40px;border-radius:10px;background:var(--accent-dim);border:1px solid var(--accent-dim2);display:grid;place-items:center;font-weight:700;font-size:16px;color:var(--accent);flex-shrink:0}
+    .client-info{flex:1;min-width:0}
+    .client-name{font-weight:600;font-size:14px;color:#fff}
+    .client-phone{font-size:12px;color:rgba(255,255,255,0.65);margin-top:2px;font-family:var(--mono)}
+    .client-jobs{font-size:11px;color:rgba(255,255,255,0.45);margin-top:3px}
+    .search-wrap{position:relative;margin-bottom:16px}
+    .search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,0.5);width:16px;height:16px;pointer-events:none}
+    .search-input{width:100%;background:rgba(255,255,255,0.12);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.22);border-radius:var(--radius-sm);color:#fff;font-family:var(--font);font-size:14px;padding:11px 14px 11px 36px;outline:none;-webkit-appearance:none;transition:border-color 0.15s}
+    .search-input:focus{border-color:rgba(255,255,255,0.6)}
+    /* ── CALENDAR LIQUID GLASS ── */
+    #sec-schedule{
+      padding: 0;
+    }
+    .cal-glass{
+      background: rgba(255,255,255,0.12);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 20px;
+      padding: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.3);
+      margin-bottom: 14px;
+    }
+    .cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .cal-header h3{font-size:16px;font-weight:700;color:#fff;letter-spacing:-0.3px}
+    .cal-nav{
+      background:rgba(255,255,255,0.15);
+      backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,0.25);
+      border-radius:10px;padding:6px 12px;cursor:pointer;
+      color:#fff;font-size:20px;line-height:1;
+      transition: background 0.15s;
+    }
+    .cal-nav:active{background:rgba(255,255,255,0.25)}
+    .cal-day-names{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-bottom:6px}
+    .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-bottom:0;width:100%}
+    .cal-day-name{text-align:center;font-size:10px;font-weight:600;color:rgba(255,255,255,0.6);padding:4px 0;text-transform:uppercase;min-width:0;overflow:hidden}
+    .cal-day{height:44px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;cursor:pointer;position:relative;color:rgba(255,255,255,0.75);transition:background 0.15s;min-width:0;overflow:visible;gap:2px}
+    .cal-day:active{background:rgba(255,255,255,0.15)}
+    .cal-day.today{color:#fff;font-weight:700}
+    .cal-day.today .cal-day-num{
+      background:rgba(255,255,255,0.25);
+      border:1px solid rgba(255,255,255,0.4);
+      border-radius:8px;
+      width:30px;height:30px;
+      display:grid;place-items:center;
+    }
+    .cal-day.selected .cal-day-num{
+      background:#fff;
+      color:#2563eb;
+      border-radius:8px;
+      width:30px;height:30px;
+      display:grid;place-items:center;
+      font-weight:700;
+    }
+    .cal-day.selected{color:#fff}
+    .cal-day.other-month{color:rgba(255,255,255,0.25)}
+    .cal-day.empty{cursor:default}
+    .cal-day-num{display:grid;place-items:center;width:30px;height:30px;font-size:14px;font-weight:500;}
+    .cal-badge{
+      font-size:9px;font-weight:700;
+      background:rgba(255,255,255,0.9);
+      color:#2563eb;
+      border-radius:20px;
+      padding:1px 5px;
+      min-width:16px;
+      text-align:center;
+      line-height:14px;
+    }
+    .cal-day.selected .cal-badge{background:#2563eb;color:#fff;}
+    .cal-day.other-month .cal-badge{display:none}
+    .cal-day-section{
+      background:rgba(255,255,255,0.1);
+      backdrop-filter:blur(10px);
+      -webkit-backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,0.2);
+      border-radius:16px;
+      padding:14px;
+      margin-top:14px;
+    }
+    #cal-day-label{
+      font-size:12px;font-weight:700;text-transform:uppercase;
+      letter-spacing:0.8px;color:rgba(255,255,255,0.7);
+      margin-bottom:10px;margin-top:0;
+    }
+    .detail-row{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)}
+    .detail-row:last-child{border-bottom:none}
+    .detail-label{font-size:12px;color:var(--text-muted);font-weight:500}
+    .detail-val{font-size:14px;font-weight:500;text-align:right;max-width:60%}
+    #toast{position:fixed;bottom:calc(80px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 18px;font-size:13px;font-weight:500;white-space:nowrap;opacity:0;transition:opacity 0.2s,transform 0.2s;pointer-events:none;z-index:200}
+    #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    .spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .loading-wrap{padding:40px;display:grid;place-items:center}
+    .status-btns{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:16px}
+    .status-btn{padding:10px;border-radius:var(--radius-sm);border:1px solid;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer}
+    .status-btn.scheduled{background:var(--blue-dim);color:var(--blue);border-color:rgba(37,99,235,0.2)}
+    .status-btn.in_progress{background:var(--orange-dim);color:var(--orange);border-color:rgba(249,115,22,0.2)}
+    .status-btn.done{background:var(--green-dim);color:var(--green);border-color:rgba(34,197,94,0.2)}
+    .status-btn.cancelled{background:var(--red-dim);color:var(--red);border-color:rgba(239,68,68,0.2)}
+  </style>
+</head>
+<body>
+
+<!-- ── LOGIN SCREEN ── -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">🔧</div>
+      <div class="login-logo-text">Trade<em>Book</em></div>
+    </div>
+    <div class="login-tabs">
+      <button class="login-tab active" id="tab-login" onclick="switchTab('login')">Sign In</button>
+      <button class="login-tab" id="tab-signup" onclick="switchTab('signup')">Create Account</button>
+    </div>
+    <div class="login-field">
+      <label>Email</label>
+      <input type="email" id="auth-email" placeholder="you@example.com" autocomplete="email" />
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <div class="login-error" id="auth-error"></div>
+    <button class="login-btn" id="auth-submit" onclick="handleAuth()">Sign In</button>
+    <div class="login-divider" id="auth-hint">Don't have an account? Switch to Create Account above.</div>
+  </div>
+</div>
+
+<!-- ── APP ── -->
+<div id="offline-banner"></div>
+<div id="app">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🔧</div>
+      <span>Trade<em>Book</em></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div id="header-date" style="font-size:12px;color:rgba(255,255,255,0.6);font-family:var(--mono)"></div>
+      <button id="logout-btn" onclick="handleLogout()">Sign out</button>
+    </div>
+  </header>
+  <main>
+    <div class="section active" id="sec-today">
+      <div class="dash-header">
+        <div>
+          <div class="dash-greeting" id="dash-greeting">Good morning</div>
+          <div class="dash-date" id="today-subtitle">Loading...</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="stat-num" id="stat-today">–</div><div class="stat-label">Today</div></div>
+        <div class="stat"><div class="stat-num" id="stat-week">–</div><div class="stat-label">This week</div></div>
+        <div class="stat"><div class="stat-num" id="stat-pending">–</div><div class="stat-label">Pending</div></div>
+      </div>
+      <div class="dash-section-label">Today</div>
+      <div id="today-jobs"><div class="loading-wrap"><div class="spinner"></div></div></div>
+      <div class="dash-section-label" id="upcoming-label" style="display:none">Upcoming</div>
+      <div id="upcoming-jobs"></div>
+    </div>
+    <div class="section" id="sec-schedule">
+      <div class="cal-glass">
+        <div class="cal-header">
+          <div class="cal-nav" id="cal-prev">‹</div>
+          <h3 id="cal-month-label"></h3>
+          <div class="cal-nav" id="cal-next">›</div>
+        </div>
+        <div class="cal-day-names">
+          <div class="cal-day-name">M</div><div class="cal-day-name">T</div><div class="cal-day-name">W</div>
+          <div class="cal-day-name">T</div><div class="cal-day-name">F</div><div class="cal-day-name">S</div><div class="cal-day-name">S</div>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+      <div class="cal-day-section">
+        <div id="cal-day-label" class="section-label">Select a day</div>
+        <div id="cal-jobs"></div>
+      </div>
+    </div>
+    <div class="section" id="sec-clients">
+      <div class="search-wrap">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input class="search-input" id="client-search" placeholder="Search clients…" />
+      </div>
+      <div id="client-list"><div class="loading-wrap"><div class="spinner"></div></div></div>
+    </div>
+  </main>
+  <nav>
+    <button class="nav-btn active" data-section="today">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Today
+    </button>
+    <button class="nav-btn" data-section="schedule">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Schedule
+    </button>
+    <button class="nav-btn" data-section="clients">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Clients
+    </button>
+  </nav>
+  <button class="fab" id="fab">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+</div>
+
+<!-- ADD JOB -->
+<div class="modal-backdrop" id="modal-add-job">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">New Job</div>
+    <div class="field"><label>Client</label><select id="aj-client"><option value="">Select client…</option></select></div>
+    <div class="field"><label>Trade</label>
+      <select id="aj-trade">
+        <option value="carpentry">🪵 Carpentry</option>
+        <option value="plumbing">🔧 Plumbing</option>
+        <option value="electrical">⚡ Electrical</option>
+        <option value="painting">🖌️ Painting</option>
+        <option value="roofing">🏠 Roofing</option>
+        <option value="tiling">🪟 Tiling</option>
+        <option value="general">🔩 General</option>
+      </select>
+    </div>
+    <div class="field"><label>Description</label><input type="text" id="aj-desc" placeholder="e.g. Fix kitchen sink leak" /></div>
+    <div class="field"><label>Date</label><input type="date" id="aj-date" /></div>
+    <div class="field"><label>Time</label><input type="time" id="aj-time" /></div>
+    <div class="field"><label>Notes (optional)</label><textarea id="aj-notes" placeholder="Any extra details…"></textarea></div>
+    <button class="btn btn-primary" id="aj-save">Add Job</button>
+    <button class="btn btn-secondary" id="aj-cancel">Cancel</button>
+  </div>
+</div>
+
+<!-- ADD CLIENT -->
+<div class="modal-backdrop" id="modal-add-client">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">New Client</div>
+    <div class="field"><label>Full Name</label><input type="text" id="ac-name" placeholder="e.g. John Smith" /></div>
+    <div class="field"><label>Phone Number</label><input type="tel" id="ac-phone" placeholder="e.g. 07700 900123" /></div>
+    <div class="field"><label>Address (optional)</label><input type="text" id="ac-address" placeholder="e.g. 14 Oak Street" /></div>
+    <button class="btn btn-primary" id="ac-save">Add Client</button>
+    <button class="btn btn-secondary" id="ac-cancel">Cancel</button>
+  </div>
+</div>
+
+<!-- JOB DETAIL -->
+<div class="modal-backdrop" id="modal-job-detail"><div class="modal"><div class="modal-handle"></div><div id="jd-content"></div></div></div>
+
+<!-- CLIENT DETAIL -->
+<div class="modal-backdrop" id="modal-client-detail"><div class="modal"><div class="modal-handle"></div><div id="cd-content"></div></div></div>
+
+<!-- FAB CHOICE -->
+<div class="modal-backdrop" id="modal-fab-choice">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Add New…</div>
+    <button class="btn btn-primary" id="fab-add-job">📋  Schedule a Job</button>
+    <button class="btn btn-secondary" id="fab-add-client">👤  Add a Client</button>
+    <button class="btn btn-secondary" id="fab-cancel">Cancel</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── CONFIG ──
+const SUPABASE_URL = 'https://hsuitmtfsuoqzhgtkgdv.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhzdWl0bXRmc3VvcXpoZ3RrZ2R2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MzYxMzUsImV4cCI6MjA5ODMxMjEzNX0.JfvWHDwzlGhOlGzuXmWL8edEjONGpYdivA-g0wY92wk';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── STATE ──
+let clients = [], jobs = [], calDate = new Date(), calSelectedDate = null, currentSection = 'today';
+let currentUser = null;
+
+const TRADES = {
+  carpentry:{icon:'🪵',label:'Carpentry'}, plumbing:{icon:'🔧',label:'Plumbing'},
+  electrical:{icon:'⚡',label:'Electrical'}, painting:{icon:'🖌️',label:'Painting'},
+  roofing:{icon:'🏠',label:'Roofing'}, tiling:{icon:'🪟',label:'Tiling'}, general:{icon:'🔩',label:'General'}
+};
+const STATUS_LABELS = {scheduled:'Scheduled',in_progress:'In Progress',done:'Done',cancelled:'Cancelled'};
+
+// ── AUTH SCREENS ──
+let authMode = 'login';
+
+function switchTab(mode) {
+  authMode = mode;
+  document.getElementById('tab-login').classList.toggle('active', mode==='login');
+  document.getElementById('tab-signup').classList.toggle('active', mode==='signup');
+  document.getElementById('auth-submit').textContent = mode==='login' ? 'Sign In' : 'Create Account';
+  document.getElementById('auth-hint').textContent = mode==='login'
+    ? "Don't have an account? Switch to Create Account above."
+    : 'Already have an account? Switch to Sign In above.';
+  document.getElementById('auth-error').classList.remove('show');
+  document.getElementById('auth-password').autocomplete = mode==='login' ? 'current-password' : 'new-password';
+}
+
+async function handleAuth() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errEl = document.getElementById('auth-error');
+  const btn = document.getElementById('auth-submit');
+  errEl.classList.remove('show');
+  if (!email || !password) { showAuthError('Please enter your email and password.'); return; }
+  btn.disabled = true;
+  btn.textContent = authMode==='login' ? 'Signing in…' : 'Creating account…';
+  try {
+    let result;
+    if (authMode==='login') {
+      result = await sb.auth.signInWithPassword({ email, password });
+    } else {
+      result = await sb.auth.signUp({ email, password });
+    }
+    if (result.error) { showAuthError(result.error.message); }
+    else if (authMode==='signup' && !result.data.session) {
+      showAuthError('Check your email to confirm your account, then sign in.');
+    }
+    // session change handled by onAuthStateChange
+  } catch(e) {
+    showAuthError('Something went wrong. Try again.');
+  }
+  btn.disabled = false;
+  btn.textContent = authMode==='login' ? 'Sign In' : 'Create Account';
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg; el.classList.add('show');
+}
+
+document.getElementById('auth-email').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('auth-password').focus(); });
+document.getElementById('auth-password').addEventListener('keydown', e => { if(e.key==='Enter') handleAuth(); });
+
+async function handleLogout() {
+  await sb.auth.signOut();
+  // onAuthStateChange will handle the screen switch
+}
+
+function showLogin() {
+  document.getElementById('login-screen').classList.add('show');
+  document.getElementById('app').classList.remove('show');
+  // Clear data on logout
+  clients = []; jobs = [];
+  currentUser = null;
+}
+
+async function showApp(user) {
+  currentUser = user;
+  document.getElementById('login-screen').classList.remove('show');
+  document.getElementById('app').classList.add('show');
+  document.getElementById('header-date').textContent = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'}).toUpperCase();
+  idbDb = await openIDB();
+  if(!navigator.onLine) setOnline(false);
+  await loadAll();
+  renderToday();
+}
+
+// ── OFFLINE / INDEXEDDB ──
+const DB_NAME = 'tradebook-v1';
+let idbDb = null;
+let isOnline = navigator.onLine;
+
+function openIDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('clients')) d.createObjectStore('clients', {keyPath:'id'});
+      if (!d.objectStoreNames.contains('jobs'))    d.createObjectStore('jobs',    {keyPath:'id'});
+      if (!d.objectStoreNames.contains('queue'))   d.createObjectStore('queue',   {keyPath:'qid',autoIncrement:true});
+    };
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+function idbAll(store) {
+  return new Promise((res,rej) => { const tx=idbDb.transaction(store,'readonly'); const r=tx.objectStore(store).getAll(); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); });
+}
+function idbPut(store, val) {
+  return new Promise((res,rej) => { const tx=idbDb.transaction(store,'readwrite'); const r=tx.objectStore(store).put(val); r.onsuccess=()=>res(); r.onerror=()=>rej(r.error); });
+}
+function idbDel(store, key) {
+  return new Promise((res,rej) => { const tx=idbDb.transaction(store,'readwrite'); const r=tx.objectStore(store).delete(key); r.onsuccess=()=>res(); r.onerror=()=>rej(r.error); });
+}
+function idbClear(store) {
+  return new Promise((res,rej) => { const tx=idbDb.transaction(store,'readwrite'); const r=tx.objectStore(store).clear(); r.onsuccess=()=>res(); r.onerror=()=>rej(r.error); });
+}
+async function cacheLocal(c, j) {
+  await idbClear('clients'); await idbClear('jobs');
+  for (const x of c) await idbPut('clients', x);
+  for (const x of j) await idbPut('jobs', x);
+}
+async function enqueue(op) { await idbPut('queue', op); }
+
+const banner = document.getElementById('offline-banner');
+function setOnline(val) {
+  isOnline = val;
+  if (!val) { banner.textContent = '📡 Offline — changes will sync when signal returns'; banner.className='show'; }
+  else       { banner.className=''; processQueue(); }
+}
+window.addEventListener('online',  () => setOnline(true));
+window.addEventListener('offline', () => setOnline(false));
+
+async function processQueue() {
+  const queue = await idbAll('queue');
+  if (!queue.length) return;
+  banner.textContent = `⏳ Syncing ${queue.length} change${queue.length>1?'s':''}…`; banner.className='show syncing';
+  let failed = 0;
+  for (const op of queue) {
+    try {
+      if (op.type==='insert_job') {
+        const {data,error} = await sb.from('jobs').insert(op.payload).select().single();
+        if (error) throw error;
+        jobs = jobs.map(j => j.id===op.tempId ? data : j);
+        await idbDel('jobs', op.tempId); await idbPut('jobs', data);
+      } else if (op.type==='update_job') {
+        const {error} = await sb.from('jobs').update(op.payload).eq('id',op.id);
+        if (error) throw error;
+      } else if (op.type==='delete_job') {
+        const {error} = await sb.from('jobs').delete().eq('id',op.id);
+        if (error) throw error;
+      } else if (op.type==='insert_client') {
+        const {data,error} = await sb.from('clients').insert(op.payload).select().single();
+        if (error) throw error;
+        clients = clients.map(c => c.id===op.tempId ? data : c);
+        await idbDel('clients', op.tempId); await idbPut('clients', data);
+      } else if (op.type==='delete_client') {
+        const {error} = await sb.from('clients').delete().eq('id',op.id);
+        if (error) throw error;
+      }
+      await idbDel('queue', op.qid);
+    } catch(e) { console.error('Sync failed', op, e); failed++; }
+  }
+  if (failed===0) {
+    banner.textContent='✓ All changes synced'; banner.className='show synced';
+    setTimeout(()=>{banner.className='';},2500);
+    await loadAll(); renderCurrent();
+  } else {
+    banner.textContent=`⚠️ ${failed} change(s) failed to sync`; banner.className='show';
+  }
+}
+
+// ── UTILS ──
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 2500);
+}
+function isoDate(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmtDate(d) { return new Date(d+'T00:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}); }
+function fmtTime(t) { if(!t)return''; const[h,m]=t.split(':'); const hr=parseInt(h); return `${hr%12||12}:${m} ${hr<12?'am':'pm'}`; }
+function initials(n) { return (n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
+function clientName(id) { const c=clients.find(c=>c.id==id); return c?c.name:'Unknown'; }
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeAll() { document.querySelectorAll('.modal-backdrop').forEach(m=>m.classList.remove('open')); }
+function renderCurrent() {
+  if(currentSection==='today') renderToday();
+  else if(currentSection==='schedule') renderCalendar();
+  else if(currentSection==='clients') renderClients();
+}
+
+// ── DATA ──
+async function loadAll() {
+  if (!currentUser) return;
+  const uid = currentUser.id;
+  if (!isOnline) {
+    clients = await idbAll('clients');
+    jobs    = await idbAll('jobs');
+    // Filter cached data to this user only
+    clients = clients.filter(c => c.user_id === uid);
+    jobs    = jobs.filter(j => j.user_id === uid);
+    clients.sort((a,b)=>a.name.localeCompare(b.name));
+    jobs.sort((a,b)=>a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||''));
+    return;
+  }
+  try {
+    const [{data:c,error:ce},{data:j,error:je}] = await Promise.all([
+      sb.from('clients').select('*').eq('user_id', uid).order('name'),
+      sb.from('jobs').select('*').eq('user_id', uid).order('date').order('time')
+    ]);
+    if (ce||je) throw ce||je;
+    clients = c||[]; jobs = j||[];
+    await cacheLocal(clients, jobs);
+  } catch(err) {
+    clients = (await idbAll('clients')).filter(c => c.user_id === uid);
+    jobs    = (await idbAll('jobs')).filter(j => j.user_id === uid);
+    clients.sort((a,b)=>a.name.localeCompare(b.name));
+    jobs.sort((a,b)=>a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||''));
+    setOnline(false);
+  }
+}
+
+// ── NAV ──
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentSection = btn.dataset.section;
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+    document.getElementById('sec-'+currentSection).classList.add('active');
+    renderCurrent();
+  });
+});
+
+// ── FAB ──
+document.getElementById('fab').addEventListener('click', ()=>openModal('modal-fab-choice'));
+document.getElementById('fab-cancel').addEventListener('click', ()=>closeAll());
+document.getElementById('fab-add-job').addEventListener('click', ()=>{closeAll();openAddJob();});
+document.getElementById('fab-add-client').addEventListener('click', ()=>{closeAll();openAddClient();});
+document.querySelectorAll('.modal-backdrop').forEach(bd=>{ bd.addEventListener('click',e=>{if(e.target===bd)closeAll();}); });
+
+// ── TODAY DASHBOARD ──
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function renderToday() {
+  const now = new Date();
+  const today = isoDate(now);
+  const next7 = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now); d.setDate(d.getDate() + i);
+    next7.push(isoDate(d));
+  }
+  const todayJobs    = jobs.filter(j => j.date === today);
+  const weekJobs     = jobs.filter(j => next7.includes(j.date));
+  const pendingJobs  = jobs.filter(j => j.status !== 'done' && j.status !== 'cancelled' && j.date >= today);
+  const upcomingJobs = jobs.filter(j => j.date > today && next7.includes(j.date))
+                           .sort((a,b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
+  document.getElementById('dash-greeting').textContent = getGreeting();
+  document.getElementById('today-subtitle').textContent = now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+  document.getElementById('stat-today').textContent   = todayJobs.length;
+  document.getElementById('stat-week').textContent    = weekJobs.length;
+  document.getElementById('stat-pending').textContent = pendingJobs.length;
+  const el = document.getElementById('today-jobs');
+  if (!todayJobs.length) {
+    el.innerHTML = '<div class="empty" style="padding:20px 0 8px"><div class="empty-icon">☀️</div><h3>No jobs today</h3><p>Enjoy the day off!</p></div>';
+  } else {
+    el.innerHTML = todayJobs.map(j => jobCardHTML(j)).join('');
+    el.querySelectorAll('.job-card').forEach(card => card.addEventListener('click', () => openJobDetail(card.dataset.id)));
+  }
+  const upcomingEl = document.getElementById('upcoming-jobs');
+  const labelEl    = document.getElementById('upcoming-label');
+  if (!upcomingJobs.length) {
+    labelEl.style.display = 'none';
+    upcomingEl.innerHTML = '';
+  } else {
+    labelEl.style.display = 'block';
+    const grouped = {};
+    upcomingJobs.forEach(j => { if (!grouped[j.date]) grouped[j.date] = []; grouped[j.date].push(j); });
+    let html = '';
+    for (const [date, dayJobs] of Object.entries(grouped)) {
+      const label = new Date(date + 'T00:00:00').toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'short'});
+      html += `<div class="upcoming-day-label">${label}</div>`;
+      html += dayJobs.map(j => jobCardHTML(j)).join('');
+    }
+    upcomingEl.innerHTML = html;
+    upcomingEl.querySelectorAll('.job-card').forEach(card => card.addEventListener('click', () => openJobDetail(card.dataset.id)));
+  }
+}
+
+function jobCardHTML(j) {
+  const tr = TRADES[j.trade]||TRADES.general;
+  return `<div class="job-card" data-id="${j.id}">
+    <div class="trade-badge ${j.trade}">${tr.icon}</div>
+    <div class="job-info">
+      <div class="job-title">${j.description}</div>
+      <div class="job-client">${clientName(j.client_id)}</div>
+      <div class="job-time">${fmtDate(j.date)}${j.time?' · '+fmtTime(j.time):''}</div>
+    </div>
+    <div class="job-meta"><span class="status-pill ${j.status}">${STATUS_LABELS[j.status]||j.status}</span></div>
+  </div>`;
+}
+
+// ── CALENDAR ──
+function renderCalendar() {
+  const year=calDate.getFullYear(), month=calDate.getMonth(), today=isoDate(new Date());
+  document.getElementById('cal-month-label').textContent = new Date(year,month).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+  const firstDOW = new Date(year,month,1).getDay();
+  const startOffset = firstDOW===0 ? 6 : firstDOW-1;
+  const daysInMonth = new Date(year,month+1,0).getDate();
+  const daysInPrev  = new Date(year,month,0).getDate();
+  const jobCounts = {};
+  jobs.forEach(j=>{ jobCounts[j.date]=(jobCounts[j.date]||0)+1; });
+  let cells=[];
+  for (let i=startOffset-1;i>=0;i--) cells.push(`<div class="cal-day other-month empty"><div class="cal-day-num">${daysInPrev-i}</div></div>`);
+  for (let d=1;d<=daysInMonth;d++) {
+    const ds=isoDate(new Date(year,month,d));
+    const cls=['cal-day',ds===today?'today':'',ds===calSelectedDate?'selected':''].filter(Boolean).join(' ');
+    const cnt=jobCounts[ds]||0;
+    const badge=cnt>0?`<div class="cal-badge">${cnt}</div>`:'';
+    cells.push(`<div class="${cls}" data-date="${ds}"><div class="cal-day-num">${d}</div>${badge}</div>`);
+  }
+  const rem=cells.length%7; if(rem!==0){for(let i=1;i<=7-rem;i++)cells.push(`<div class="cal-day other-month empty"><div class="cal-day-num">${i}</div></div>`);}
+  document.getElementById('cal-grid').innerHTML=cells.join('');
+  document.querySelectorAll('.cal-day[data-date]').forEach(el=>{
+    el.addEventListener('click',()=>{calSelectedDate=el.dataset.date;renderCalendar();renderCalDay();});
+  });
+  if(calSelectedDate)renderCalDay();
+  else{document.getElementById('cal-day-label').textContent='Select a day to view jobs';document.getElementById('cal-jobs').innerHTML='';}
+}
+function renderCalDay() {
+  const dayJobs=jobs.filter(j=>j.date===calSelectedDate);
+  document.getElementById('cal-day-label').textContent=new Date(calSelectedDate+'T00:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+  const el=document.getElementById('cal-jobs');
+  if(!dayJobs.length){el.innerHTML='<div class="empty" style="padding:24px 0"><div class="empty-icon">📅</div><h3>No jobs this day</h3><p>Tap + to schedule one.</p></div>';return;}
+  el.innerHTML=dayJobs.map(j=>jobCardHTML(j)).join('');
+  el.querySelectorAll('.job-card').forEach(card=>card.addEventListener('click',()=>openJobDetail(card.dataset.id)));
+}
+document.getElementById('cal-prev').addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()-1);calSelectedDate=null;document.getElementById('cal-day-label').textContent='Select a day to view jobs';document.getElementById('cal-jobs').innerHTML='';renderCalendar();});
+document.getElementById('cal-next').addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()+1);calSelectedDate=null;document.getElementById('cal-day-label').textContent='Select a day to view jobs';document.getElementById('cal-jobs').innerHTML='';renderCalendar();});
+
+// ── CLIENTS ──
+let clientFilter='';
+document.getElementById('client-search').addEventListener('input',e=>{clientFilter=e.target.value.toLowerCase();renderClients();});
+function renderClients() {
+  const filtered=clients.filter(c=>c.name.toLowerCase().includes(clientFilter)||(c.phone||'').includes(clientFilter));
+  const el=document.getElementById('client-list');
+  if(!filtered.length){el.innerHTML='<div class="empty"><div class="empty-icon">👤</div><h3>No clients yet</h3><p>Tap + to add your first client.</p></div>';return;}
+  el.innerHTML=filtered.map(c=>{
+    const cnt=jobs.filter(j=>j.client_id==c.id).length;
+    return `<div class="client-card" data-id="${c.id}">
+      <div class="avatar">${initials(c.name)}</div>
+      <div class="client-info">
+        <div class="client-name">${c.name}</div>
+        ${c.phone?`<div class="client-phone">${c.phone}</div>`:''}
+        <div class="client-jobs">${cnt} job${cnt!==1?'s':''}</div>
+      </div>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:var(--text-dim)"><path d="m9 18 6-6-6-6"/></svg>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.client-card').forEach(card=>card.addEventListener('click',()=>openClientDetail(card.dataset.id)));
+}
+
+// ── JOB DETAIL ──
+function openJobDetail(id) {
+  const j=jobs.find(j=>j.id==id); if(!j)return;
+  const tr=TRADES[j.trade]||TRADES.general;
+  const el=document.getElementById('jd-content');
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <div class="trade-badge ${j.trade}" style="width:44px;height:44px;font-size:22px">${tr.icon}</div>
+      <div><div style="font-size:18px;font-weight:700">${j.description}</div><div style="font-size:13px;color:var(--text-muted);margin-top:2px">${tr.label}</div></div>
+    </div>
+    <div class="detail-row"><span class="detail-label">Client</span><span class="detail-val">${clientName(j.client_id)}</span></div>
+    <div class="detail-row"><span class="detail-label">Date</span><span class="detail-val">${fmtDate(j.date)}</span></div>
+    <div class="detail-row"><span class="detail-label">Time</span><span class="detail-val">${j.time?fmtTime(j.time):'—'}</span></div>
+    <div class="detail-row"><span class="detail-label">Status</span><span class="detail-val"><span class="status-pill ${j.status}">${STATUS_LABELS[j.status]}</span></span></div>
+    ${j.notes?`<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-val" style="font-size:13px;color:var(--text-muted)">${j.notes}</span></div>`:''}
+    <div style="margin-top:16px"><div class="section-label">Update Status</div>
+    <div class="status-btns">
+      <button class="status-btn scheduled" data-status="scheduled">Scheduled</button>
+      <button class="status-btn in_progress" data-status="in_progress">In Progress</button>
+      <button class="status-btn done" data-status="done">Done ✓</button>
+      <button class="status-btn cancelled" data-status="cancelled">Cancelled</button>
+    </div></div>
+    <button class="btn btn-danger" id="jd-delete" style="margin-top:16px">Delete Job</button>
+    <button class="btn btn-secondary" id="jd-close">Close</button>`;
+  openModal('modal-job-detail');
+  el.querySelectorAll('.status-btn').forEach(btn=>{
+    btn.addEventListener('click', async()=>{
+      const ns=btn.dataset.status;
+      jobs=jobs.map(x=>x.id===j.id?{...x,status:ns}:x);
+      await idbPut('jobs',{...j,status:ns});
+      if(!isOnline){await enqueue({type:'update_job',id:j.id,payload:{status:ns}});toast('Saved offline');}
+      else{await sb.from('jobs').update({status:ns}).eq('id',j.id);toast('Status updated');}
+      closeAll(); renderCurrent();
+    });
+  });
+  document.getElementById('jd-delete').addEventListener('click', async()=>{
+    if(!confirm('Delete this job?'))return;
+    jobs=jobs.filter(x=>x.id!==j.id); await idbDel('jobs',j.id);
+    if(!isOnline){await enqueue({type:'delete_job',id:j.id});toast('Deleted offline');}
+    else{await sb.from('jobs').delete().eq('id',j.id);toast('Job deleted');}
+    closeAll(); renderCurrent();
+  });
+  document.getElementById('jd-close').addEventListener('click',()=>closeAll());
+}
+
+// ── CLIENT DETAIL ──
+function openClientDetail(id) {
+  const c=clients.find(c=>c.id==id); if(!c)return;
+  const cjobs=jobs.filter(j=>j.client_id==id).sort((a,b)=>b.date.localeCompare(a.date));
+  const el=document.getElementById('cd-content');
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <div class="avatar" style="width:48px;height:48px;font-size:18px;border-radius:12px">${initials(c.name)}</div>
+      <div><div style="font-size:18px;font-weight:700">${c.name}</div>${c.phone?`<div style="font-size:13px;color:var(--text-muted);font-family:var(--mono);margin-top:2px">${c.phone}</div>`:''}</div>
+    </div>
+    ${c.address?`<div class="detail-row"><span class="detail-label">Address</span><span class="detail-val" style="font-size:13px">${c.address}</span></div>`:''}
+    <div class="section-label" style="margin-top:16px">Job History (${cjobs.length})</div>
+    ${cjobs.length?cjobs.map(j=>{const tr=TRADES[j.trade]||TRADES.general;return`<div class="job-card" data-id="${j.id}"><div class="trade-badge ${j.trade}">${tr.icon}</div><div class="job-info"><div class="job-title">${j.description}</div><div class="job-time">${fmtDate(j.date)}</div></div><span class="status-pill ${j.status}">${STATUS_LABELS[j.status]}</span></div>`;}).join(''):'<p style="color:var(--text-muted);font-size:13px">No jobs yet.</p>'}
+    <button class="btn btn-danger" id="cd-delete" style="margin-top:16px">Delete Client</button>
+    <button class="btn btn-secondary" id="cd-close">Close</button>`;
+  openModal('modal-client-detail');
+  el.querySelectorAll('.job-card').forEach(card=>card.addEventListener('click',()=>{closeAll();openJobDetail(card.dataset.id);}));
+  document.getElementById('cd-delete').addEventListener('click', async()=>{
+    if(!confirm(`Delete ${c.name}? Their jobs will also be deleted.`))return;
+    clients=clients.filter(x=>x.id!==c.id); jobs=jobs.filter(x=>x.client_id!==c.id);
+    await idbDel('clients',c.id);
+    if(!isOnline){await enqueue({type:'delete_client',id:c.id});toast('Deleted offline');}
+    else{await sb.from('jobs').delete().eq('client_id',c.id);await sb.from('clients').delete().eq('id',c.id);toast('Client deleted');}
+    closeAll(); renderClients(); renderToday();
+  });
+  document.getElementById('cd-close').addEventListener('click',()=>closeAll());
+}
+
+// ── ADD JOB ──
+function openAddJob() {
+  const sel=document.getElementById('aj-client');
+  sel.innerHTML='<option value="">Select client…</option>'+clients.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  document.getElementById('aj-desc').value='';
+  document.getElementById('aj-date').value=isoDate(new Date());
+  document.getElementById('aj-time').value='';
+  document.getElementById('aj-notes').value='';
+  openModal('modal-add-job');
+}
+document.getElementById('aj-save').addEventListener('click', async()=>{
+  const clientId=document.getElementById('aj-client').value;
+  const trade=document.getElementById('aj-trade').value;
+  const desc=document.getElementById('aj-desc').value.trim();
+  const date=document.getElementById('aj-date').value;
+  const time=document.getElementById('aj-time').value;
+  const notes=document.getElementById('aj-notes').value.trim();
+  if(!clientId||!desc||!date){toast('Fill in client, description and date');return;}
+  const payload={user_id:currentUser.id,client_id:parseInt(clientId),trade,description:desc,date,time:time||null,notes:notes||null,status:'scheduled'};
+  if(!isOnline){
+    const tempId=-Date.now(); const tmp={...payload,id:tempId};
+    jobs.push(tmp); jobs.sort((a,b)=>a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||''));
+    await idbPut('jobs',tmp); await enqueue({type:'insert_job',payload,tempId});
+    toast('Saved offline — will sync later'); closeAll(); renderCurrent(); return;
+  }
+  const {data,error}=await sb.from('jobs').insert(payload).select().single();
+  if(error){toast('Error saving job');console.error(error);return;}
+  jobs.push(data); jobs.sort((a,b)=>a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||''));
+  await idbPut('jobs',data); toast('Job added ✓'); closeAll(); renderCurrent();
+});
+document.getElementById('aj-cancel').addEventListener('click',()=>closeAll());
+
+// ── ADD CLIENT ──
+function openAddClient() {
+  document.getElementById('ac-name').value='';
+  document.getElementById('ac-phone').value='';
+  document.getElementById('ac-address').value='';
+  openModal('modal-add-client');
+}
+document.getElementById('ac-save').addEventListener('click', async()=>{
+  const name=document.getElementById('ac-name').value.trim();
+  const phone=document.getElementById('ac-phone').value.trim();
+  const address=document.getElementById('ac-address').value.trim();
+  if(!name){toast('Enter a client name');return;}
+  const payload={user_id:currentUser.id,name,phone:phone||null,address:address||null};
+  if(!isOnline){
+    const tempId=-Date.now(); const tmp={...payload,id:tempId};
+    clients.push(tmp); clients.sort((a,b)=>a.name.localeCompare(b.name));
+    await idbPut('clients',tmp); await enqueue({type:'insert_client',payload,tempId});
+    toast('Saved offline — will sync later'); closeAll(); renderClients(); return;
+  }
+  const {data,error}=await sb.from('clients').insert(payload).select().single();
+  if(error){toast('Error saving client');console.error(error);return;}
+  clients.push(data); clients.sort((a,b)=>a.name.localeCompare(b.name));
+  await idbPut('clients',data); toast('Client added ✓'); closeAll(); renderClients();
+});
+document.getElementById('ac-cancel').addEventListener('click',()=>closeAll());
+
+// ── SERVICE WORKER ──
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+
+// ── INIT ──
+sb.auth.onAuthStateChange((event, session) => {
+  if (session?.user) {
+    showApp(session.user);
+  } else {
+    showLogin();
+  }
+});
+</script>
+</body>
+</html>
