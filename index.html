@@ -434,8 +434,17 @@ async function handleAuth() {
     } else {
       result = await sb.auth.signUp({ email, password });
     }
-    if (result.error) { showAuthError(result.error.message); }
-    else if (authMode==='signup' && !result.data.session) {
+    if (result.error) {
+      const msg = result.error.message;
+      if (authMode==='signup' && (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already exists'))) {
+        showAuthError('An account with that email already exists. Sign in instead.');
+        switchTab('login');
+      } else if (authMode==='login' && msg.toLowerCase().includes('invalid login')) {
+        showAuthError('Incorrect email or password.');
+      } else {
+        showAuthError(msg);
+      }
+    } else if (authMode==='signup' && !result.data.session) {
       showAuthError('Check your email to confirm your account, then sign in.');
     }
     // session change handled by onAuthStateChange
