@@ -89,6 +89,12 @@
     .job-info{flex:1;min-width:0}
     .job-title{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
     .job-client{font-size:12px;color:rgba(255,255,255,0.65);margin-top:2px}
+    .job-assigned{font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px;font-weight:500}
+    .assignee-badge{display:inline-block;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:20px;padding:1px 8px;font-size:11px;color:rgba(255,255,255,0.9);font-weight:600;margin-right:4px;cursor:pointer;transition:background 0.15s}
+    .assignee-badge.active{background:rgba(255,255,255,0.3);border-color:rgba(255,255,255,0.5)}
+    .assignee-badge:active{background:rgba(255,255,255,0.25)}
+    .assignee-filter-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;align-items:center}
+    .assignee-filter-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.5);margin-right:2px}
     .job-time{font-size:12px;color:rgba(255,255,255,0.65);margin-top:2px;font-family:var(--mono)}
     .job-meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}
     .status-pill{font-size:10px;font-weight:600;padding:3px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:0.4px}
@@ -224,13 +230,13 @@
     .status-btn.done{background:var(--green-dim);color:var(--green);border-color:rgba(34,197,94,0.2)}
     .status-btn.cancelled{background:var(--red-dim);color:var(--red);border-color:rgba(239,68,68,0.2)}
     .card-status-chips{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1)}
-    .card-chip{padding:6px 2px;border-radius:7px;border:1px solid transparent;font-family:var(--font);font-size:10px;font-weight:700;cursor:pointer;text-align:center;transition:opacity 0.15s,transform 0.1s;letter-spacing:0.2px}
+    .card-chip{padding:7px 2px;border-radius:7px;border:1px solid transparent;font-family:var(--font);font-size:10px;font-weight:700;cursor:pointer;text-align:center;transition:opacity 0.15s,transform 0.1s;letter-spacing:0.2px}
     .card-chip:active{transform:scale(0.95)}
-    .card-chip.scheduled{background:var(--blue-dim);color:var(--blue);border-color:rgba(37,99,235,0.2)}
-    .card-chip.in_progress{background:var(--orange-dim);color:var(--orange);border-color:rgba(249,115,22,0.2)}
-    .card-chip.done{background:var(--green-dim);color:var(--green);border-color:rgba(34,197,94,0.2)}
-    .card-chip.cancelled{background:var(--red-dim);color:var(--red);border-color:rgba(239,68,68,0.2)}
-    .card-chip.active-status{opacity:1}.card-chip.inactive-status{opacity:0.38}
+    .card-chip.scheduled{background:rgba(37,99,235,0.55);color:#fff;border-color:rgba(37,99,235,0.7)}
+    .card-chip.in_progress{background:rgba(249,115,22,0.55);color:#fff;border-color:rgba(249,115,22,0.7)}
+    .card-chip.done{background:rgba(34,197,94,0.55);color:#fff;border-color:rgba(34,197,94,0.7)}
+    .card-chip.cancelled{background:rgba(239,68,68,0.55);color:#fff;border-color:rgba(239,68,68,0.7)}
+    .card-chip.active-status{opacity:1;filter:brightness(1.2)}.card-chip.inactive-status{opacity:0.45}
   </style>
 </head>
 <body>
@@ -286,6 +292,7 @@
         <div class="stat"><div class="stat-num" id="stat-week">–</div><div class="stat-label">This week</div></div>
         <div class="stat"><div class="stat-num" id="stat-pending">–</div><div class="stat-label">Pending</div></div>
       </div>
+      <div id="assignee-filter-row" class="assignee-filter-row" style="display:none"></div>
       <div class="dash-section-label">Today</div>
       <div id="today-jobs"><div class="loading-wrap"><div class="spinner"></div></div></div>
       <div class="dash-section-label" id="upcoming-label" style="display:none">Upcoming</div>
@@ -356,6 +363,7 @@
     <div class="field"><label>Description</label><input type="text" id="aj-desc" placeholder="e.g. Fix kitchen sink leak" /></div>
     <div class="field"><label>Date</label><input type="date" id="aj-date" /></div>
     <div class="field"><label>Time</label><input type="time" id="aj-time" /></div>
+    <div class="field"><label>Assigned to (optional)</label><input type="text" id="aj-assigned" placeholder="e.g. Dave" /></div>
     <div class="field"><label>Notes (optional)</label><textarea id="aj-notes" placeholder="Any extra details…"></textarea></div>
     <button class="btn btn-primary" id="aj-save">Add Job</button>
     <button class="btn btn-secondary" id="aj-cancel">Cancel</button>
@@ -657,6 +665,8 @@ function getGreeting() {
   return 'Good evening';
 }
 
+let assigneeFilter = null;
+
 function renderToday() {
   const now = new Date();
   const today = isoDate(now);
@@ -665,6 +675,23 @@ function renderToday() {
     const d = new Date(now); d.setDate(d.getDate() + i);
     next7.push(isoDate(d));
   }
+
+  // Build assignee filter row
+  const assignees = [...new Set(jobs.map(j => j.assigned_to).filter(Boolean))].sort();
+  const filterRow = document.getElementById('assignee-filter-row');
+  if (assignees.length) {
+    filterRow.style.display = 'flex';
+    filterRow.innerHTML = `<span class="assignee-filter-label">👷</span>` +
+      `<span class="assignee-badge ${!assigneeFilter?'active':''}" data-name="">All</span>` +
+      assignees.map(n => `<span class="assignee-badge ${assigneeFilter===n?'active':''}" data-name="${n}">${n}</span>`).join('');
+    filterRow.querySelectorAll('.assignee-badge').forEach(b => {
+      b.addEventListener('click', () => { assigneeFilter = b.dataset.name || null; renderToday(); });
+    });
+  } else {
+    filterRow.style.display = 'none';
+  }
+
+  const byAssignee = j => !assigneeFilter || j.assigned_to === assigneeFilter;
   const todayJobs    = jobs.filter(j => j.date === today);
   const weekJobs     = jobs.filter(j => next7.includes(j.date));
   const pendingJobs  = jobs.filter(j => j.status !== 'done' && j.status !== 'cancelled' && j.date >= today);
@@ -672,25 +699,27 @@ function renderToday() {
                            .sort((a,b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
   document.getElementById('dash-greeting').textContent = getGreeting();
   document.getElementById('today-subtitle').textContent = now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
-  document.getElementById('stat-today').textContent   = todayJobs.length;
-  document.getElementById('stat-week').textContent    = weekJobs.length;
-  document.getElementById('stat-pending').textContent = pendingJobs.length;
+  document.getElementById('stat-today').textContent   = todayJobs.filter(byAssignee).length;
+  document.getElementById('stat-week').textContent    = weekJobs.filter(byAssignee).length;
+  document.getElementById('stat-pending').textContent = pendingJobs.filter(byAssignee).length;
   const el = document.getElementById('today-jobs');
-  if (!todayJobs.length) {
+  const filteredToday = todayJobs.filter(byAssignee);
+  if (!filteredToday.length) {
     el.innerHTML = '<div class="empty" style="padding:20px 0 8px"><div class="empty-icon">☀️</div><h3>No jobs today</h3><p>Enjoy the day off!</p></div>';
   } else {
-    el.innerHTML = todayJobs.map(j => jobCardHTML(j)).join('');
+    el.innerHTML = filteredToday.map(j => jobCardHTML(j)).join('');
     attachCardListeners(el);
   }
   const upcomingEl = document.getElementById('upcoming-jobs');
   const labelEl    = document.getElementById('upcoming-label');
-  if (!upcomingJobs.length) {
+  const filteredUpcoming = upcomingJobs.filter(byAssignee);
+  if (!filteredUpcoming.length) {
     labelEl.style.display = 'none';
     upcomingEl.innerHTML = '';
   } else {
     labelEl.style.display = 'block';
     const grouped = {};
-    upcomingJobs.forEach(j => { if (!grouped[j.date]) grouped[j.date] = []; grouped[j.date].push(j); });
+    filteredUpcoming.forEach(j => { if (!grouped[j.date]) grouped[j.date] = []; grouped[j.date].push(j); });
     let html = '';
     for (const [date, dayJobs] of Object.entries(grouped)) {
       const label = new Date(date + 'T00:00:00').toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'short'});
@@ -725,7 +754,7 @@ function jobCardHTML(j) {
       <div class="job-info">
         <div class="job-title">${j.description}</div>
         <div class="job-client">${clientName(j.client_id)}</div>
-        <div class="job-time">${fmtDate(j.date)}${j.time?' · '+fmtTime(j.time):''}</div>
+        <div class="job-time">${fmtDate(j.date)}${j.time?' · '+fmtTime(j.time):''}${j.assigned_to?` · 👷 ${j.assigned_to}`:''}</div>
       </div>
     </div>
     <div class="card-status-chips">${chips}</div>
@@ -815,6 +844,7 @@ function openJobDetail(id) {
     <div class="detail-row"><span class="detail-label">Date</span><span class="detail-val">${fmtDate(j.date)}</span></div>
     <div class="detail-row"><span class="detail-label">Time</span><span class="detail-val">${j.time?fmtTime(j.time):'—'}</span></div>
     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-val"><span class="status-pill ${j.status}">${STATUS_LABELS[j.status]}</span></span></div>
+    ${j.assigned_to?`<div class="detail-row"><span class="detail-label">Assigned to</span><span class="detail-val">👷 ${j.assigned_to}</span></div>`:''}
     ${j.notes?`<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-val" style="font-size:13px;color:var(--text-muted)">${j.notes}</span></div>`:''}
     <div style="margin-top:16px"><div class="section-label">Update Status</div>
     <div class="status-btns">
@@ -881,6 +911,7 @@ function openAddJob() {
   document.getElementById('aj-desc').value='';
   document.getElementById('aj-date').value=isoDate(new Date());
   document.getElementById('aj-time').value='';
+  document.getElementById('aj-assigned').value='';
   document.getElementById('aj-notes').value='';
   openModal('modal-add-job');
 }
@@ -890,9 +921,10 @@ document.getElementById('aj-save').addEventListener('click', async()=>{
   const desc=document.getElementById('aj-desc').value.trim();
   const date=document.getElementById('aj-date').value;
   const time=document.getElementById('aj-time').value;
+  const assigned=document.getElementById('aj-assigned').value.trim();
   const notes=document.getElementById('aj-notes').value.trim();
   if(!clientId||!desc||!date){toast('Fill in client, description and date');return;}
-  const payload={user_id:currentUser.id,client_id:parseInt(clientId),trade,description:desc,date,time:time||null,notes:notes||null,status:'scheduled'};
+  const payload={user_id:currentUser.id,client_id:parseInt(clientId),trade,description:desc,date,time:time||null,assigned_to:assigned||null,notes:notes||null,status:'scheduled'};
   if(!isOnline){
     const tempId=-Date.now(); const tmp={...payload,id:tempId};
     jobs.push(tmp); jobs.sort((a,b)=>a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||''));
