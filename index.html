@@ -223,6 +223,14 @@
     .status-btn.in_progress{background:var(--orange-dim);color:var(--orange);border-color:rgba(249,115,22,0.2)}
     .status-btn.done{background:var(--green-dim);color:var(--green);border-color:rgba(34,197,94,0.2)}
     .status-btn.cancelled{background:var(--red-dim);color:var(--red);border-color:rgba(239,68,68,0.2)}
+    .card-status-chips{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1)}
+    .card-chip{padding:6px 2px;border-radius:7px;border:1px solid transparent;font-family:var(--font);font-size:10px;font-weight:700;cursor:pointer;text-align:center;transition:opacity 0.15s,transform 0.1s;letter-spacing:0.2px}
+    .card-chip:active{transform:scale(0.95)}
+    .card-chip.scheduled{background:var(--blue-dim);color:var(--blue);border-color:rgba(37,99,235,0.2)}
+    .card-chip.in_progress{background:var(--orange-dim);color:var(--orange);border-color:rgba(249,115,22,0.2)}
+    .card-chip.done{background:var(--green-dim);color:var(--green);border-color:rgba(34,197,94,0.2)}
+    .card-chip.cancelled{background:var(--red-dim);color:var(--red);border-color:rgba(239,68,68,0.2)}
+    .card-chip.active-status{opacity:1}.card-chip.inactive-status{opacity:0.38}
   </style>
 </head>
 <body>
@@ -672,7 +680,7 @@ function renderToday() {
     el.innerHTML = '<div class="empty" style="padding:20px 0 8px"><div class="empty-icon">☀️</div><h3>No jobs today</h3><p>Enjoy the day off!</p></div>';
   } else {
     el.innerHTML = todayJobs.map(j => jobCardHTML(j)).join('');
-    el.querySelectorAll('.job-card').forEach(card => card.addEventListener('click', () => openJobDetail(card.dataset.id)));
+    attachCardListeners(el);
   }
   const upcomingEl = document.getElementById('upcoming-jobs');
   const labelEl    = document.getElementById('upcoming-label');
@@ -690,21 +698,47 @@ function renderToday() {
       html += dayJobs.map(j => jobCardHTML(j)).join('');
     }
     upcomingEl.innerHTML = html;
-    upcomingEl.querySelectorAll('.job-card').forEach(card => card.addEventListener('click', () => openJobDetail(card.dataset.id)));
+    attachCardListeners(upcomingEl);
   }
+}
+
+function attachCardListeners(container) {
+  container.querySelectorAll('.card-chip').forEach(chip => {
+    chip.addEventListener('click', e => {
+      e.stopPropagation();
+      updateJobStatus(chip.dataset.chipId, chip.dataset.chipStatus);
+    });
+  });
+  container.querySelectorAll('.job-card').forEach(card => {
+    card.addEventListener('click', () => openJobDetail(card.dataset.id));
+  });
 }
 
 function jobCardHTML(j) {
   const tr = TRADES[j.trade]||TRADES.general;
-  return `<div class="job-card" data-id="${j.id}">
-    <div class="trade-badge ${j.trade}">${tr.icon}</div>
-    <div class="job-info">
-      <div class="job-title">${j.description}</div>
-      <div class="job-client">${clientName(j.client_id)}</div>
-      <div class="job-time">${fmtDate(j.date)}${j.time?' · '+fmtTime(j.time):''}</div>
+  const chips = ['scheduled','in_progress','done','cancelled'].map(s =>
+    `<button class="card-chip ${s} ${j.status===s?'active-status':'inactive-status'}" data-chip-id="${j.id}" data-chip-status="${s}">${STATUS_LABELS[s]}</button>`
+  ).join('');
+  return `<div class="job-card" data-id="${j.id}" style="flex-direction:column;align-items:stretch">
+    <div style="display:flex;gap:12px;align-items:flex-start">
+      <div class="trade-badge ${j.trade}">${tr.icon}</div>
+      <div class="job-info">
+        <div class="job-title">${j.description}</div>
+        <div class="job-client">${clientName(j.client_id)}</div>
+        <div class="job-time">${fmtDate(j.date)}${j.time?' · '+fmtTime(j.time):''}</div>
+      </div>
     </div>
-    <div class="job-meta"><span class="status-pill ${j.status}">${STATUS_LABELS[j.status]||j.status}</span></div>
+    <div class="card-status-chips">${chips}</div>
   </div>`;
+}
+
+async function updateJobStatus(id, newStatus) {
+  const j = jobs.find(j => j.id == id); if (!j) return;
+  jobs = jobs.map(x => x.id === j.id ? {...x, status: newStatus} : x);
+  await idbPut('jobs', {...j, status: newStatus});
+  if (!isOnline) { await enqueue({type:'update_job', id:j.id, payload:{status:newStatus}}); toast('Saved offline'); }
+  else { await sb.from('jobs').update({status: newStatus}).eq('id', j.id); toast('Status updated'); }
+  renderCurrent();
 }
 
 // ── CALENDAR ──
@@ -740,7 +774,7 @@ function renderCalDay() {
   const el=document.getElementById('cal-jobs');
   if(!dayJobs.length){el.innerHTML='<div class="empty" style="padding:24px 0"><div class="empty-icon">📅</div><h3>No jobs this day</h3><p>Tap + to schedule one.</p></div>';return;}
   el.innerHTML=dayJobs.map(j=>jobCardHTML(j)).join('');
-  el.querySelectorAll('.job-card').forEach(card=>card.addEventListener('click',()=>openJobDetail(card.dataset.id)));
+  attachCardListeners(el);
 }
 document.getElementById('cal-prev').addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()-1);calSelectedDate=null;document.getElementById('cal-day-label').textContent='Select a day to view jobs';document.getElementById('cal-jobs').innerHTML='';renderCalendar();});
 document.getElementById('cal-next').addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()+1);calSelectedDate=null;document.getElementById('cal-day-label').textContent='Select a day to view jobs';document.getElementById('cal-jobs').innerHTML='';renderCalendar();});
